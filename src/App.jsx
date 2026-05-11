@@ -18,6 +18,14 @@ function useMotionSettings() {
   useEffect(() => {
     const reducedQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const coarseQuery = window.matchMedia('(pointer: coarse)');
+    const attach = (query, listener) => {
+      if (query.addEventListener) {
+        query.addEventListener('change', listener);
+        return () => query.removeEventListener('change', listener);
+      }
+      query.addListener(listener);
+      return () => query.removeListener(listener);
+    };
 
     const update = () => {
       const lowPower = coarseQuery.matches || (navigator.hardwareConcurrency || 8) <= 4;
@@ -25,12 +33,12 @@ function useMotionSettings() {
     };
 
     update();
-    reducedQuery.addEventListener('change', update);
-    coarseQuery.addEventListener('change', update);
+    const detachReduced = attach(reducedQuery, update);
+    const detachCoarse = attach(coarseQuery, update);
 
     return () => {
-      reducedQuery.removeEventListener('change', update);
-      coarseQuery.removeEventListener('change', update);
+      detachReduced();
+      detachCoarse();
     };
   }, []);
 
@@ -195,7 +203,7 @@ function CustomCursor({ enabled }) {
 
     const onHover = (event) => {
       if (!cursorRef.current) return;
-      const interactive = event.target.closest('a, button, .glass-card');
+      const interactive = event.target instanceof Element && event.target.closest('a, button, .glass-card');
       cursorRef.current.classList.toggle('cursor-hover', Boolean(interactive));
     };
 
