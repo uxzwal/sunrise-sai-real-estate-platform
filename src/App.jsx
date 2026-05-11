@@ -10,7 +10,7 @@ import { siteConfig } from './app/config/site';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const MODEL_PATH = '/models/modern_city_block.glb';
+const MODEL_PATH = `${import.meta.env.BASE_URL}models/modern_city_block.glb`;
 
 function useMotionSettings() {
   const [settings, setSettings] = useState({ reduced: false, coarse: false, lowPower: false });
