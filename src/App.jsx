@@ -68,19 +68,19 @@ function FallbackBlock() {
   );
 }
 
-function Scene({ pointerTarget, reducedMotion, lowPower, sceneRefs }) {
+function Scene({ pointerTarget, reducedMotion, lowPower, sceneRefs, onReady }) {
   const modelRig = useRef();
-  const cameraRig = useRef();
   const smoothPointer = useMemo(() => new THREE.Vector2(0, 0), []);
   const lastFrameTime = useRef(0);
   const { camera } = useThree();
 
   useEffect(() => {
     if (sceneRefs.current) {
-      sceneRefs.current.cameraRig = cameraRig.current;
+      sceneRefs.current.camera = camera;
       sceneRefs.current.modelRig = modelRig.current;
+      onReady();
     }
-  }, [sceneRefs]);
+  }, [camera, onReady, sceneRefs]);
 
   useFrame((state) => {
     const now = state.clock.getElapsedTime();
@@ -95,19 +95,16 @@ function Scene({ pointerTarget, reducedMotion, lowPower, sceneRefs }) {
       modelRig.current.rotation.x = THREE.MathUtils.lerp(modelRig.current.rotation.x, -smoothPointer.y * intensity * 0.7, 0.12);
     }
 
-    if (cameraRig.current && !reducedMotion) {
+    if (!reducedMotion) {
       const parallax = lowPower ? 0.08 : 0.18;
-      cameraRig.current.position.x = THREE.MathUtils.lerp(cameraRig.current.position.x, smoothPointer.x * parallax, 0.08);
-      cameraRig.current.position.y = THREE.MathUtils.lerp(cameraRig.current.position.y, smoothPointer.y * parallax * 0.4, 0.08);
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, smoothPointer.x * parallax, 0.08);
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, smoothPointer.y * parallax * 0.4, 0.08);
     }
   });
 
   return (
     <>
       <color attach="background" args={["#0f0f12"]} />
-      <group ref={cameraRig}>
-        <perspectiveCamera position={[0, 0.2, 4]} fov={40} />
-      </group>
 
       <ambientLight intensity={lowPower ? 0.7 : 0.5} color="#f4e0b3" />
       <directionalLight position={[2, 4, 2]} intensity={1.4} color="#fff7df" />
@@ -216,7 +213,8 @@ function CustomCursor({ enabled }) {
 }
 
 export default function App() {
-  const sceneRefs = useRef({ cameraRig: null, modelRig: null });
+  const sceneRefs = useRef({ camera: null, modelRig: null });
+  const [sceneReady, setSceneReady] = useState(false);
   const pointerTarget = useRef(new THREE.Vector2(0, 0));
   const { reduced, coarse, lowPower } = useMotionSettings();
 
@@ -253,7 +251,7 @@ export default function App() {
   }, [reduced]);
 
   useEffect(() => {
-    if (reduced || !sceneRefs.current.cameraRig) return undefined;
+    if (reduced || !sceneReady || !sceneRefs.current.camera) return undefined;
 
     const lenis = new Lenis({
       duration: 1.05,
@@ -281,20 +279,19 @@ export default function App() {
     });
 
     cameraTimeline
-      .to(sceneRefs.current.cameraRig.position, { z: 3.2, x: 0.3, y: 0.1, ease: 'none' })
-      .to(sceneRefs.current.cameraRig.rotation, { y: -0.25, x: 0.02, ease: 'none' }, '<')
-      .to(sceneRefs.current.cameraRig.position, { z: 2.7, x: -0.35, y: 0.2, ease: 'none' })
-      .to(sceneRefs.current.cameraRig.rotation, { y: 0.22, x: -0.02, ease: 'none' }, '<')
-      .to(sceneRefs.current.cameraRig.position, { z: 3.0, x: 0, y: 0, ease: 'none' })
-      .to(sceneRefs.current.cameraRig.rotation, { y: 0, x: 0, ease: 'none' }, '<');
+      .to(sceneRefs.current.camera.position, { z: 3.2, x: 0.3, y: 0.1, ease: 'none' })
+      .to(sceneRefs.current.camera.rotation, { y: -0.25, x: 0.02, ease: 'none' }, '<')
+      .to(sceneRefs.current.camera.position, { z: 2.7, x: -0.35, y: 0.2, ease: 'none' })
+      .to(sceneRefs.current.camera.rotation, { y: 0.22, x: -0.02, ease: 'none' }, '<')
+      .to(sceneRefs.current.camera.position, { z: 3.0, x: 0, y: 0, ease: 'none' })
+      .to(sceneRefs.current.camera.rotation, { y: 0, x: 0, ease: 'none' }, '<');
 
     return () => {
       cameraTimeline.kill();
       gsap.ticker.remove(ticker);
       lenis.destroy();
-      ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
     };
-  }, [reduced]);
+  }, [reduced, sceneReady]);
 
   return (
     <main className={`app-shell ${!coarse ? 'hide-native-cursor' : ''}`}>
@@ -304,7 +301,13 @@ export default function App() {
           gl={{ antialias: !lowPower, alpha: false, powerPreference: lowPower ? 'low-power' : 'high-performance' }}
           camera={{ position: [0, 0.1, 4], fov: 40 }}
         >
-          <Scene pointerTarget={pointerTarget} reducedMotion={reduced} lowPower={lowPower} sceneRefs={sceneRefs} />
+          <Scene
+            pointerTarget={pointerTarget}
+            reducedMotion={reduced}
+            lowPower={lowPower}
+            sceneRefs={sceneRefs}
+            onReady={() => setSceneReady(true)}
+          />
         </Canvas>
       </div>
 
